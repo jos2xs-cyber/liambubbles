@@ -1,0 +1,452 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Sparkles, RefreshCw } from 'lucide-react';
+import { audioManager } from './services/AudioManager';
+
+interface Bubble {
+  id: string;
+  row: number;
+  col: number;
+  color: string;
+  isPopping?: boolean;
+}
+
+const GRID_SIZE = 9;
+const COLORS = [
+  '#FF3B3B', // Bright Red
+  '#26DE81', // Emerald
+  '#45AAF2', // Sky Blue
+  '#FED330', // Bright Lemon Yellow
+  '#A55EEA', // Purple
+  '#FA8231', // Deep Vibrant Orange
+];
+
+export default function App() {
+  const [grid, setGrid] = useState<Bubble[]>([]);
+  const [activeChain, setActiveChain] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Use a ref for the grid to avoid dependency issues in touch handlers
+  const gridRef = useRef<Bubble[]>([]);
+  const chainRef = useRef<string[]>([]);
+  const draggingRef = useRef(false);
+
+  useEffect(() => {
+    gridRef.current = grid;
+  }, [grid]);
+
+  useEffect(() => {
+    chainRef.current = activeChain;
+  }, [activeChain]);
+
+  // Initialize Grid
+  const initGrid = useCallback(() => {
+    const newBubbles: Bubble[] = [];
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        newBubbles.push({
+          id: `${r}-${c}-${Math.random()}`,
+          row: r,
+          col: c,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        });
+      }
+    }
+    setGrid(newBubbles);
+    gridRef.current = newBubbles;
+  }, []);
+
+  useEffect(() => {
+    initGrid();
+  }, [initGrid]);
+
+  const findBubbleUnderPoint = useCallback((clientX: number, clientY: number) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    
+    // Position within the container (0-1)
+    const relX = (clientX - rect.left) / rect.width;
+    const relY = (clientY - rect.top) / rect.height;
+
+    if (relX < -0.05 || relX > 1.05 || relY < -0.05 || relY > 1.05) return null;
+
+    // Convert to grid index
+    const col = Math.round(relX * (GRID_SIZE - 1));
+    const row = Math.round(relY * (GRID_SIZE - 1));
+
+    // Distance check in relative units
+    const cellRelX = col / (GRID_SIZE - 1);
+    const cellRelY = row / (GRID_SIZE - 1);
+    const dist = Math.sqrt(Math.pow(relX - cellRelX, 2) + Math.pow(relY - cellRelY, 2));
+    
+    if (dist < 0.12) { // 12% radius is very forgiving
+        return gridRef.current.find(b => b.row === row && b.col === col);
+    }
+    return null;
+  }, []);
+
+  // Use passive: false listeners for better iPad support
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !hasStarted) return;
+
+    const preventDefault = (e: Event) => e.preventDefault();
+    container.addEventListener('contextmenu', preventDefault);
+
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      draggingRef.current = true;
+      setIsDragging(true);
+
+      const bubble = findBubbleUnderPoint(e.touches[0].clientX, e.touches[0].clientY);
+      if (bubble) {
+        setActiveChain([bubble.id]);
+        audioManager.playConnect(0);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const clientX = e.touches[0].clientX;
+      const clientY = e.touches[0].clientY;
+
+      setMousePos({
+        x: ((clientX - rect.left) / rect.width) * 100,
+        y: ((clientY - rect.top) / rect.height) * 100
+      });
+
+      if (!draggingRef.current) return;
+
+      const bubble = findBubbleUnderPoint(clientX, clientY);
+      if (!bubble) return;
+
+      const currentChain = chainRef.current;
+      
+      if (currentChain.length === 0) {
+        setActiveChain([bubble.id]);
+        audioManager.playConnect(0);
+        return;
+      }
+
+      const lastId = currentChain[currentChain.length - 1];
+      const lastBubble = gridRef.current.find(b => b.id === lastId);
+      
+      if (!lastBubble) return;
+
+      const isAdjacent = Math.abs(bubble.row - lastBubble.row) <= 1 && 
+                         Math.abs(bubble.col - lastBubble.col) <= 1;
+      const isSameColor = bubble.color === lastBubble.color;
+      const isNew = !currentChain.includes(bubble.id);
+
+      if (isAdjacent && isSameColor && isNew) {
+        const newChain = [...currentChain, bubble.id];
+        setActiveChain(newChain);
+        audioManager.playConnect(newChain.length - 1);
+        if (newChain.length >= 4) {
+          audioManager.playPowerUp();
+        }
+      } else if (currentChain.length > 1 && bubble.id === currentChain[currentChain.length - 2]) {
+        setActiveChain(prev => prev.slice(0, -1));
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      draggingRef.current = false;
+      handleEnd();
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: false });
+
+    return () => {
+      container.removeEventListener('contextmenu', preventDefault);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [findBubbleUnderPoint, hasStarted]);
+
+  const handleStartInteraction = async () => {
+    await audioManager.resume();
+    setHasStarted(true);
+  };
+
+  const handleStart = async (e: React.MouseEvent) => {
+    await audioManager.resume();
+    draggingRef.current = true;
+    setIsDragging(true);
+    
+    const bubble = findBubbleUnderPoint(e.clientX, e.clientY);
+    if (bubble) {
+      setActiveChain([bubble.id]);
+      audioManager.playConnect(0);
+    }
+  };
+
+  const handleMove = (e: React.MouseEvent) => {
+    if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setMousePos({
+            x: ((e.clientX - rect.left) / rect.width) * 100,
+            y: ((e.clientY - rect.top) / rect.height) * 100
+        });
+    }
+
+    if (!draggingRef.current) return;
+
+    const bubble = findBubbleUnderPoint(e.clientX, e.clientY);
+    if (!bubble) return;
+
+    const currentChain = chainRef.current;
+
+    if (currentChain.length === 0) {
+        setActiveChain([bubble.id]);
+        audioManager.playConnect(0);
+        return;
+    }
+
+    const lastId = currentChain[currentChain.length - 1];
+    const lastBubble = gridRef.current.find(b => b.id === lastId);
+    
+    if (!lastBubble) return;
+
+    const isAdjacent = Math.abs(bubble.row - lastBubble.row) <= 1 && 
+                       Math.abs(bubble.col - lastBubble.col) <= 1;
+    const isSameColor = bubble.color === lastBubble.color;
+    const isNew = !currentChain.includes(bubble.id);
+
+    if (isAdjacent && isSameColor && isNew) {
+      const newChain = [...currentChain, bubble.id];
+      setActiveChain(newChain);
+      audioManager.playConnect(newChain.length - 1);
+      
+      // Satisfying sound for 4+ connections
+      if (newChain.length >= 4) {
+          audioManager.playPowerUp();
+      }
+    } else if (currentChain.length > 1 && bubble.id === currentChain[currentChain.length - 2]) {
+        setActiveChain(prev => prev.slice(0, -1));
+    }
+  };
+
+  const handleEnd = async () => {
+    const chainToPop = [...chainRef.current];
+    setActiveChain([]);
+    setIsDragging(false);
+    draggingRef.current = false;
+
+    if (chainToPop.length < 3) return;
+
+    // 1. Pop Sequence
+    for (let i = 0; i < chainToPop.length; i++) {
+        audioManager.playPop(i);
+        setGrid(prev => prev.map(b => b.id === chainToPop[i] ? { ...b, isPopping: true } : b));
+        await new Promise(r => setTimeout(r, 60));
+    }
+
+    // 2. Reposition Vertical
+    setGrid(prev => {
+        const nextGrid: Bubble[] = [];
+        for (let c = 0; c < GRID_SIZE; c++) {
+            const colExisting = prev.filter(b => b.col === c && !chainToPop.includes(b.id))
+                                   .sort((a, b) => b.row - a.row);
+            
+            for (let i = 0; i < colExisting.length; i++) {
+                nextGrid.push({ ...colExisting[i], row: GRID_SIZE - 1 - i });
+            }
+
+            const missing = GRID_SIZE - colExisting.length;
+            for (let i = 0; i < missing; i++) {
+                nextGrid.push({
+                    id: `new-${c}-${Date.now()}-${i}`,
+                    row: missing - 1 - i,
+                    col: c,
+                    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                });
+            }
+        }
+        return nextGrid;
+    });
+
+    audioManager.playRefill();
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 overflow-hidden bg-slate-950 flex flex-col items-center select-none touch-none font-sans h-[100dvh]"
+      onMouseDown={handleStart}
+      onMouseMove={handleMove}
+      onMouseUp={handleEnd}
+      onMouseLeave={handleEnd}
+      style={{
+        background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%)'
+      }}
+    >
+      <AnimatePresence>
+          {!hasStarted && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-3xl flex flex-col items-center justify-center p-12 text-center"
+                onClick={handleStartInteraction}
+                onTouchStart={(e) => { e.preventDefault(); handleStartInteraction(); }}
+              >
+                  <motion.div 
+                    animate={{ scale: [1, 1.1, 1] }} 
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mb-8 border border-white/20"
+                  >
+                      <Sparkles className="w-10 h-10 text-yellow-400" />
+                  </motion.div>
+                  <h1 className="text-white text-3xl font-black tracking-tighter mb-4">Liam's Bubble Buster</h1>
+                  <p className="text-white/40 text-sm max-w-xs mx-auto mb-12">
+                      Tap anywhere to start connecting bubbles and making music!
+                  </p>
+                  <div className="bg-white text-slate-950 px-8 py-4 rounded-full font-bold uppercase tracking-widest text-xs">
+                      Tap to Start
+                  </div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* Header HUD */}
+      <div className="absolute top-10 left-0 right-0 z-20 flex justify-between px-10 items-center">
+        <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl px-5 py-3 rounded-2xl border border-white/10 shadow-2xl">
+          <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
+          <span className="text-white font-bold tracking-widest uppercase text-xs">Liam's Bubble Buster</span>
+        </div>
+        <button 
+          onClick={initGrid}
+          className="p-4 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 text-white hover:bg-white/10 transition-all active:scale-90"
+        >
+          <RefreshCw className="w-5 h-5 opacity-50" />
+        </button>
+      </div>
+
+      <div className="relative w-[90%] max-w-2xl aspect-square mt-28 bg-white/5 rounded-[40px] border border-white/5 shadow-inner">
+          {/* Grid Area - This is what we track */}
+          <div className="absolute inset-10" ref={containerRef}>
+              {/* Connection Lines (SVG) */}
+              <svg className="absolute inset-0 pointer-events-none z-10 w-full h-full overflow-visible">
+                {activeChain.length > 1 && activeChain.map((id, i) => {
+                  if (i === 0) return null;
+                  const b1 = grid.find(b => b.id === activeChain[i-1]);
+                  const b2 = grid.find(b => b.id === id);
+                  if (!b1 || !b2) return null;
+                  
+                  const step = 100 / (GRID_SIZE - 1);
+                  return (
+                    <motion.line
+                      key={`${b1.id}-${b2.id}`}
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      x1={`${b1.col * step}%`}
+                      y1={`${b1.row * step}%`}
+                      x2={`${b2.col * step}%`}
+                      y2={`${b2.row * step}%`}
+                      stroke="white"
+                      strokeWidth="12"
+                      strokeLinecap="round"
+                      className="drop-shadow-[0_0_20px_rgba(255,255,255,1)]"
+                    />
+                  );
+                })}
+                
+                {/* Future line pointer */}
+                {isDragging && activeChain.length > 0 && (() => {
+                    const last = grid.find(b => b.id === activeChain[activeChain.length-1]);
+                    if (!last) return null;
+                    const step = 100 / (GRID_SIZE - 1);
+                    return (
+                        <line 
+                            x1={`${last.col * step}%`}
+                            y1={`${last.row * step}%`}
+                            x2={`${mousePos.x}%`}
+                            y2={`${mousePos.y}%`}
+                            stroke="white"
+                            strokeWidth="4"
+                            strokeDasharray="12 12"
+                            className="opacity-40"
+                        />
+                    );
+                })()}
+                {/* Visual Touch Indicator */}
+                {isDragging && (
+                    <circle 
+                        cx={`${mousePos.x}%`}
+                        cy={`${mousePos.y}%`}
+                        r="15"
+                        fill="white"
+                        className="opacity-10"
+                    />
+                )}
+              </svg>
+
+              {/* Bubbles Container */}
+              <div className="absolute inset-0 w-full h-full">
+                <AnimatePresence>
+                    {grid.map((bubble) => {
+                        const isActive = activeChain.includes(bubble.id);
+                        const step = 100 / (GRID_SIZE - 1);
+                        
+                        return (
+                            <motion.div
+                                key={bubble.id}
+                                initial={{ scale: 0 }}
+                                animate={{ 
+                                    scale: bubble.isPopping ? 2.5 : (isActive ? 1.2 : 1),
+                                    opacity: bubble.isPopping ? 0 : 1,
+                                    left: `${bubble.col * step}%`,
+                                    top: `${bubble.row * step}%`,
+                                }}
+                                exit={{ scale: 0 }}
+                                transition={{ 
+                                    type: 'spring', 
+                                    stiffness: 600, 
+                                    damping: 35,
+                                    scale: { duration: 0.1 }
+                                }}
+                                className="absolute w-[10%] aspect-square rounded-full flex items-center justify-center -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10"
+                                style={{
+                                    backgroundColor: bubble.color,
+                                    boxShadow: isActive 
+                                        ? `0 0 60px ${bubble.color}, inset 0 0 25px white, inset 0 8px 10px rgba(255,255,255,0.5)` 
+                                        : `inset -6px -6px 12px rgba(0,0,0,0.5), inset 6px 6px 12px rgba(255,255,255,0.4), 0 10px 20px rgba(0,0,0,0.3)`,
+                                    border: isActive ? '4px solid white' : '1px solid rgba(255,255,255,0.2)'
+                                }}
+                            >
+                                <div className="absolute top-[10%] left-[10%] w-1/3 h-1/3 bg-white/50 rounded-full blur-[2px]" />
+                                <div className="absolute bottom-[10%] right-[10%] w-1/4 h-1/4 bg-black/20 rounded-full blur-[4px]" />
+                            </motion.div>
+                        );
+                    })}
+                </AnimatePresence>
+              </div>
+          </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="mt-auto mb-16 text-center">
+          <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em] mb-2">
+              Chain Reaction
+          </p>
+          <p className="text-white/20 text-[9px] uppercase tracking-[0.2em]">
+              Match 3+ Adjacent Colors
+          </p>
+      </div>
+    </div>
+  );
+}
+
