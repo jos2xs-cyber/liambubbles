@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content \"C:\\\\Users\\\\jsanc\\\\projects\\\\liambubbles\\\\vite.config.ts\" | ForEach-Object { $_ })"
+    ]
+  }
+}
