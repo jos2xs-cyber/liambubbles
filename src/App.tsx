@@ -70,12 +70,15 @@ export default function App() {
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
   const [exclamation, setExclamation] = useState<{ word: string; color: string; id: number } | null>(null);
   const [fireworkBursts, setFireworkBursts] = useState<FireworkBurst[]>([]);
+  const [comboEmoji, setComboEmoji] = useState<{ face: string; id: number } | null>(null);
+  const [splashFaceIdx, setSplashFaceIdx] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Use a ref for the grid to avoid dependency issues in touch handlers
   const gridRef = useRef<Bubble[]>([]);
   const chainRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
+  const lastExclamationRef = useRef<string | null>(null);
 
   useEffect(() => {
     gridRef.current = grid;
@@ -84,6 +87,15 @@ export default function App() {
   useEffect(() => {
     chainRef.current = activeChain;
   }, [activeChain]);
+
+  const SPLASH_FACES = ['😜', '🤪', '🥳', '😝', '🤩', '👾', '🤠', '😎'];
+  const COMBO_FACES  = ['🤯', '🥳', '😱', '🤩', '🎉'];
+
+  useEffect(() => {
+    if (hasStarted) return;
+    const id = setInterval(() => setSplashFaceIdx(i => (i + 1) % SPLASH_FACES.length), 1800);
+    return () => clearInterval(id);
+  }, [hasStarted]);
 
   // Initialize Grid — regenerate until at least one 3-match exists
   const initGrid = useCallback(() => {
@@ -304,13 +316,20 @@ export default function App() {
     const color = gridRef.current.find(b => b.id === chainToPop[0])?.color ?? '#ffffff';
     if (chainToPop.length >= 5) {
       audioManager.playLegendaryPop();
-      const word = EXCLAMATION_WORDS[Math.floor(Math.random() * EXCLAMATION_WORDS.length)];
+      const pool = EXCLAMATION_WORDS.length > 1
+        ? EXCLAMATION_WORDS.filter(w => w !== lastExclamationRef.current)
+        : EXCLAMATION_WORDS;
+      const word = pool[Math.floor(Math.random() * pool.length)];
+      lastExclamationRef.current = word;
       audioManager.speakExclamation(word);
       setExclamation({ word, color, id: Date.now() });
       setTimeout(() => setExclamation(null), 1800);
 
       if (chainToPop.length >= 7) {
         audioManager.playClapping();
+        const face = COMBO_FACES[Math.floor(Math.random() * COMBO_FACES.length)];
+        setComboEmoji({ face, id: Date.now() });
+        setTimeout(() => setComboEmoji(null), 2200);
         const now = Date.now();
         const bursts: FireworkBurst[] = Array.from({ length: 7 }, (_, i) => ({
           id: now + i,
@@ -373,6 +392,22 @@ export default function App() {
         background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%)'
       }}
     >
+      {/* Combo emoji reaction for 7+ chains */}
+      <AnimatePresence>
+        {comboEmoji && (
+          <motion.div
+            key={comboEmoji.id}
+            initial={{ scale: 0, rotate: -20, opacity: 1 }}
+            animate={{ scale: [1.5, 1.2], rotate: [10, -5, 0] }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.5, ease: 'backOut' }}
+            className="fixed top-1/3 right-12 z-50 pointer-events-none text-8xl"
+          >
+            {comboEmoji.face}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Fireworks for 7+ chains */}
       {fireworkBursts.map(burst => (
         <div
@@ -429,12 +464,23 @@ export default function App() {
                 onClick={handleStartInteraction}
                 onTouchStart={(e) => { e.preventDefault(); handleStartInteraction(); }}
               >
-                  <motion.div 
-                    animate={{ scale: [1, 1.1, 1] }} 
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mb-8 border border-white/20"
+                  <motion.div
+                    animate={{ scale: [1, 1.12, 1], rotate: [0, 4, -4, 0] }}
+                    transition={{ repeat: Infinity, duration: 2.5 }}
+                    className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center mb-8 border border-white/20"
                   >
-                      <Sparkles className="w-10 h-10 text-yellow-400" />
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={splashFaceIdx}
+                        initial={{ scale: 0, rotate: -30 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: 30 }}
+                        transition={{ duration: 0.3, ease: 'backOut' }}
+                        className="text-6xl select-none"
+                      >
+                        {SPLASH_FACES[splashFaceIdx]}
+                      </motion.span>
+                    </AnimatePresence>
                   </motion.div>
                   <h1 className="text-white text-3xl font-black tracking-tighter mb-4">Bubble Buster</h1>
                   <p className="text-white/40 text-sm max-w-xs mx-auto mb-12">
@@ -537,10 +583,14 @@ export default function App() {
                                     left: `${bubble.col * step}%`,
                                     top: `${bubble.row * step}%`,
                                 }}
+                                whileHover={!isDragging && !isActive && !bubble.isPopping ? {
+                                    rotate: [0, -10, 10, -10, 0],
+                                    transition: { duration: 0.4, repeat: Infinity, repeatDelay: 0.2 }
+                                } : {}}
                                 exit={{ scale: 0 }}
-                                transition={{ 
-                                    type: 'spring', 
-                                    stiffness: 600, 
+                                transition={{
+                                    type: 'spring',
+                                    stiffness: 600,
                                     damping: 35,
                                     scale: { duration: 0.1 }
                                 }}
