@@ -436,7 +436,7 @@ export default function App() {
                   >
                       <Sparkles className="w-10 h-10 text-yellow-400" />
                   </motion.div>
-                  <h1 className="text-white text-3xl font-black tracking-tighter mb-4">Liam's Bubble Buster</h1>
+                  <h1 className="text-white text-3xl font-black tracking-tighter mb-4">Bubble Buster</h1>
                   <p className="text-white/40 text-sm max-w-xs mx-auto mb-12">
                       Tap anywhere to start connecting bubbles and making music!
                   </p>
@@ -449,9 +449,9 @@ export default function App() {
 
       {/* Header HUD */}
       <div className="absolute top-10 left-0 right-0 z-20 flex justify-between px-10 items-center">
-        <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl px-5 py-3 rounded-2xl border border-white/10 shadow-2xl">
-          <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-          <span className="text-white font-bold tracking-widest uppercase text-xs">Liam's Bubble Buster</span>
+        <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl px-6 py-4 rounded-2xl border border-white/10 shadow-2xl">
+          <Sparkles className="w-7 h-7 text-yellow-400 animate-pulse" />
+          <span className="text-white font-bold tracking-widest uppercase text-2xl">Bubble Buster</span>
         </div>
         <button 
           onClick={initGrid}
