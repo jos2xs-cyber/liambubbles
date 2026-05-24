@@ -72,6 +72,9 @@ export default function App() {
   const [fireworkBursts, setFireworkBursts] = useState<FireworkBurst[]>([]);
   const [comboEmoji, setComboEmoji] = useState<{ face: string; id: number } | null>(null);
   const [splashFaceIdx, setSplashFaceIdx] = useState(0);
+  const [score, setScore] = useState(0);
+  const [trashTalk, setTrashTalk] = useState<{ text: string; id: number } | null>(null);
+  const [feverMode, setFeverMode] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Use a ref for the grid to avoid dependency issues in touch handlers
@@ -79,6 +82,13 @@ export default function App() {
   const chainRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
   const lastExclamationRef = useRef<string | null>(null);
+  const consecutiveChainRef = useRef(0);
+  const lastChainTimeRef = useRef(0);
+  const feverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fartTriggeredRef = useRef(false);
+  const [fartSpin, setFartSpin] = useState(false);
+  const [fartRotation, setFartRotation] = useState(0);
 
   useEffect(() => {
     gridRef.current = grid;
@@ -88,8 +98,18 @@ export default function App() {
     chainRef.current = activeChain;
   }, [activeChain]);
 
-  const SPLASH_FACES = ['😜', '🤪', '🥳', '😝', '🤩', '👾', '🤠', '😎'];
-  const COMBO_FACES  = ['🤯', '🥳', '😱', '🤩', '🎉'];
+  const SPLASH_FACES  = ['😜', '🤪', '🥳', '😝', '🤩', '👾', '🤠', '😎'];
+  const COMBO_FACES   = ['🤯', '🥳', '😱', '🤩', '🎉'];
+  const TRASH_TALK    = [
+    'IS THAT ALL YOU GOT?',
+    'MY GRANDMA POPS FASTER!',
+    'GETTING SLEEPY?',
+    'MY FISH CAN DO BETTER!',
+    'YAWN... BORING!',
+    'WAKE UP!!!',
+    'YOU CALL THAT POPPING?',
+    'NICE TRY THOUGH!',
+  ];
 
   useEffect(() => {
     if (hasStarted) return;
@@ -115,6 +135,10 @@ export default function App() {
     } while (!hasValidMove(newBubbles));
     setGrid(newBubbles);
     gridRef.current = newBubbles;
+    setScore(0);
+    setFeverMode(false);
+    consecutiveChainRef.current = 0;
+    lastChainTimeRef.current = 0;
   }, []);
 
   useEffect(() => {
@@ -293,6 +317,28 @@ export default function App() {
     }
   };
 
+  const handleRefreshDown = () => {
+    fartTriggeredRef.current = false;
+    longPressRef.current = setTimeout(async () => {
+      fartTriggeredRef.current = true;
+      audioManager.playFart();
+      setFartRotation(r => r + 360);
+      setFartSpin(true);
+      await new Promise(r => setTimeout(r, 1100));
+      setFartSpin(false);
+      initGrid();
+    }, 800);
+  };
+
+  const handleRefreshUp = () => {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+  };
+
+  const handleRefreshClick = () => {
+    if (fartTriggeredRef.current) { fartTriggeredRef.current = false; return; }
+    initGrid();
+  };
+
   const EXCLAMATION_WORDS = [
     'AMAZING SPIDER KID!',
     'WOW YOU ARE GOOD!',
@@ -314,7 +360,26 @@ export default function App() {
 
     // Tier sound + visual based on chain length
     const color = gridRef.current.find(b => b.id === chainToPop[0])?.color ?? '#ffffff';
-    if (chainToPop.length >= 5) {
+
+    const launchFireworks = () => {
+      const now = Date.now();
+      const bursts: FireworkBurst[] = Array.from({ length: 7 }, (_, i) => ({
+        id: now + i,
+        x: 10 + Math.random() * 80,
+        y: 5 + Math.random() * 65,
+        delay: i * 0.35,
+        particles: Array.from({ length: 16 }, (_, p) => ({
+          angle: (p / 16) * Math.PI * 2,
+          dist: 55 + Math.random() * 90,
+          color: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
+        })),
+      }));
+      setFireworkBursts(bursts);
+      setTimeout(() => setFireworkBursts([]), 3800);
+    };
+
+    if (chainToPop.length >= 7) {
+      // Full fanfare: sound + voice + word + emoji + clapping + fireworks
       audioManager.playLegendaryPop();
       const pool = EXCLAMATION_WORDS.length > 1
         ? EXCLAMATION_WORDS.filter(w => w !== lastExclamationRef.current)
@@ -324,27 +389,14 @@ export default function App() {
       audioManager.speakExclamation(word);
       setExclamation({ word, color, id: Date.now() });
       setTimeout(() => setExclamation(null), 1800);
-
-      if (chainToPop.length >= 7) {
-        audioManager.playClapping();
-        const face = COMBO_FACES[Math.floor(Math.random() * COMBO_FACES.length)];
-        setComboEmoji({ face, id: Date.now() });
-        setTimeout(() => setComboEmoji(null), 2200);
-        const now = Date.now();
-        const bursts: FireworkBurst[] = Array.from({ length: 7 }, (_, i) => ({
-          id: now + i,
-          x: 10 + Math.random() * 80,
-          y: 5 + Math.random() * 65,
-          delay: i * 0.35,
-          particles: Array.from({ length: 16 }, (_, p) => ({
-            angle: (p / 16) * Math.PI * 2,
-            dist: 55 + Math.random() * 90,
-            color: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
-          })),
-        }));
-        setFireworkBursts(bursts);
-        setTimeout(() => setFireworkBursts([]), 3800);
-      }
+      audioManager.playClapping();
+      const face = COMBO_FACES[Math.floor(Math.random() * COMBO_FACES.length)];
+      setComboEmoji({ face, id: Date.now() });
+      setTimeout(() => setComboEmoji(null), 2200);
+      launchFireworks();
+    } else if (chainToPop.length >= 5) {
+      // Fireworks only
+      launchFireworks();
     }
 
     // 1. Pop Sequence
@@ -379,6 +431,36 @@ export default function App() {
     });
 
     audioManager.playRefill();
+    audioManager.playBubbleRain(chainToPop.length);
+
+    // Score
+    const points = chainToPop.length * 10;
+    setScore(prev => {
+      const next = prev + points;
+      if (Math.floor(next / 150) > Math.floor(prev / 150)) {
+        const text = TRASH_TALK[Math.floor(Math.random() * TRASH_TALK.length)];
+        setTrashTalk({ text, id: Date.now() });
+        setTimeout(() => setTrashTalk(null), 2500);
+      }
+      return next;
+    });
+
+    // Fever mode — trigger after 3 quick consecutive chains
+    const now = Date.now();
+    if (now - lastChainTimeRef.current < 3500) {
+      consecutiveChainRef.current++;
+      if (consecutiveChainRef.current >= 2) {
+        setFeverMode(true);
+        if (feverTimeoutRef.current) clearTimeout(feverTimeoutRef.current);
+        feverTimeoutRef.current = setTimeout(() => {
+          setFeverMode(false);
+          consecutiveChainRef.current = 0;
+        }, 6000);
+      }
+    } else {
+      consecutiveChainRef.current = 0;
+    }
+    lastChainTimeRef.current = now;
   };
 
   return (
@@ -493,15 +575,73 @@ export default function App() {
           )}
       </AnimatePresence>
 
+      {/* Fever mode glow */}
+      <AnimatePresence>
+        {feverMode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.3, 0.6, 0.3], background: [
+              'radial-gradient(ellipse at 50% 50%, #ff3b3b44 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 50%, #a55eea44 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 50%, #45aaf244 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 50%, #fed33044 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 50%, #ff3b3b44 0%, transparent 70%)',
+            ]}}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            className="fixed inset-0 pointer-events-none z-10"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Fever label */}
+      <AnimatePresence>
+        {feverMode && (
+          <motion.div
+            initial={{ y: -40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -40, opacity: 0 }}
+            className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-2 pointer-events-none"
+          >
+            <span className="text-2xl font-black tracking-widest text-orange-400 drop-shadow-[0_0_12px_rgba(251,146,60,0.8)]">🔥 FEVER MODE 🔥</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Trash talk popup */}
+      <AnimatePresence>
+        {trashTalk && (
+          <motion.div
+            key={trashTalk.id}
+            initial={{ y: 40, opacity: 0, scale: 0.8 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'backOut' }}
+            className="fixed bottom-28 left-0 right-0 z-50 flex justify-center pointer-events-none"
+          >
+            <span className="text-white/90 font-black text-2xl tracking-wide uppercase bg-black/40 px-6 py-3 rounded-2xl backdrop-blur-sm">
+              {trashTalk.text}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header HUD */}
       <div className="absolute top-10 left-0 right-0 z-20 flex justify-between px-10 items-center">
         <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl px-6 py-4 rounded-2xl border border-white/10 shadow-2xl">
           <Sparkles className="w-7 h-7 text-yellow-400 animate-pulse" />
           <span className="text-white font-bold tracking-widest uppercase text-2xl">Bubble Buster</span>
         </div>
-        <button 
-          onClick={initGrid}
-          className="p-4 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 text-white hover:bg-white/10 transition-all active:scale-90"
+        <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-2xl border border-white/10 shadow-2xl text-center">
+          <div className="text-white/50 text-xs uppercase tracking-widest">Score</div>
+          <div className="text-white font-black text-2xl">{score.toLocaleString()}</div>
+        </div>
+        <button
+          onClick={handleRefreshClick}
+          onPointerDown={handleRefreshDown}
+          onPointerUp={handleRefreshUp}
+          onPointerLeave={handleRefreshUp}
+          className="p-4 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 text-white hover:bg-white/10 transition-all active:scale-90 select-none"
         >
           <RefreshCw className="w-5 h-5 opacity-50" />
         </button>
@@ -576,12 +716,13 @@ export default function App() {
                         return (
                             <motion.div
                                 key={bubble.id}
-                                initial={{ scale: 0 }}
-                                animate={{ 
-                                    scale: bubble.isPopping ? 2.5 : (isActive ? 1.2 : 1),
+                                initial={bubble.id.startsWith('new-') ? { top: '-25%', opacity: 0, scale: 0.8 } : { scale: 0 }}
+                                animate={{
+                                    scale: bubble.isPopping ? 2.5 : (isActive ? 1.2 : feverMode ? 1.08 : 1),
                                     opacity: bubble.isPopping ? 0 : 1,
                                     left: `${bubble.col * step}%`,
                                     top: `${bubble.row * step}%`,
+                                    rotate: fartRotation,
                                 }}
                                 whileHover={!isDragging && !isActive && !bubble.isPopping ? {
                                     rotate: [0, -10, 10, -10, 0],
@@ -592,7 +733,8 @@ export default function App() {
                                     type: 'spring',
                                     stiffness: 600,
                                     damping: 35,
-                                    scale: { duration: 0.1 }
+                                    scale: { duration: 0.1 },
+                                    rotate: { type: 'tween', duration: 0.9, ease: 'easeInOut' },
                                 }}
                                 className="absolute w-[10%] aspect-square rounded-full flex items-center justify-center -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10"
                                 style={{

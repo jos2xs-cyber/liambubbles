@@ -51,6 +51,13 @@ class AudioManager {
           this.buffers.set(name, await this.ctx!.decodeAudioData(await res.arrayBuffer()));
         } catch { /* fall back to procedural */ }
       }),
+      ...['fart1', 'fart2'].map(async (name) => {
+        try {
+          const res = await fetch(`/sounds/${name}.mp3`);
+          if (!res.ok) return;
+          this.buffers.set(name, await this.ctx!.decodeAudioData(await res.arrayBuffer()));
+        } catch { /* fall back to procedural */ }
+      }),
       ...voices.map(async (word) => {
         try {
           const res = await fetch(`/sounds/voice/${word}.mp3`);
@@ -288,6 +295,63 @@ class AudioManager {
     sweepGain.connect(this.compressor!);
     sweepOsc.start(now);
     sweepOsc.stop(now + 0.5);
+  }
+
+  /**
+   * Plays the secret fart sound for the long-press Easter egg
+   */
+  public playFart() {
+    if (!this.ctx) this.init();
+    const key = this.buffers.has('fart1') || this.buffers.has('fart2')
+      ? (Math.random() < 0.5 ? 'fart1' : 'fart2')
+      : 'fart_missing';
+    if (this.playBuffer(key, 2.5)) return;
+
+    // Procedural fallback
+    const now = this.ctx!.currentTime;
+    const sr = this.ctx!.sampleRate;
+    const N = Math.floor(sr * 0.75);
+    const buf = this.ctx!.createBuffer(1, N, sr);
+    const data = buf.getChannelData(0);
+    let phase = 0;
+    for (let i = 0; i < N; i++) {
+      const t = i / sr;
+      const freq = 110 * Math.exp(-t / 0.18) + 40;
+      phase += (2 * Math.PI * freq) / sr;
+      const env = Math.exp(-t / 0.22) * Math.min(t / 0.008, 1.0);
+      data[i] = (Math.sin(phase) * 0.6 + (Math.random() * 2 - 1) * 0.35) * env;
+    }
+    const src = this.ctx!.createBufferSource();
+    const gain = this.ctx!.createGain();
+    src.buffer = buf;
+    gain.gain.value = 2.0;
+    src.connect(gain);
+    gain.connect(this.compressor!);
+    src.start(now);
+  }
+
+  /**
+   * Plays a soft cascade of bloop tones as new bubbles rain down
+   */
+  public playBubbleRain(count: number) {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const notes = [523.25, 587.33, 659.25, 783.99, 880.00];
+    const num = Math.min(count, 5);
+    for (let i = 0; i < num; i++) {
+      const t = now + i * 0.09;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(notes[i] * 1.4, t);
+      osc.frequency.exponentialRampToValueAtTime(notes[i], t + 0.05);
+      gain.gain.setValueAtTime(0.07, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.connect(gain);
+      gain.connect(this.compressor!);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    }
   }
 
   /**

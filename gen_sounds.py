@@ -83,4 +83,37 @@ for ct in clap_times:
         result[tail_start:tail_start + tail_len] += tail_noise * tail_env * 0.18
 write_wav(f"{OUT}/clapping.wav", result)
 
-print("Done — 7 WAV files written to public/sounds/")
+# fart.wav — classic "brrrt" with flutter amplitude modulation
+N = int(SR * 0.85)
+tt = np.arange(N) / SR
+
+# Very low base freq, slight downward pitch drift
+freq = 75 * np.exp(-tt / 0.5) + 42
+freq += 18 * np.sin(2 * np.pi * 9 * tt) * np.exp(-tt / 0.3)  # 9Hz wobble
+phase = np.cumsum(freq) * 2 * np.pi / SR
+
+# Rich harmonics — lots of odd harmonics = wet fleshy sound
+carrier = (np.sin(phase) * 0.50 +
+           np.sin(2 * phase) * 0.28 +
+           np.sin(3 * phase) * 0.14 +
+           np.sin(5 * phase) * 0.07 +
+           np.sin(7 * phase) * 0.04)
+
+# Flutter modulation at ~28Hz — this is what makes it "brrrt" not "whoosh"
+flutter = np.abs(np.sin(2 * np.pi * 28 * tt)) ** 0.4
+
+# Wet noise layer
+noise = rng.uniform(-1, 1, N) * 0.20
+
+# Overall envelope: instant attack, medium decay
+env = np.exp(-tt / 0.30) * np.minimum(tt / 0.004, 1.0)
+
+# Splat transient at the very start
+splat_len = int(0.03 * SR)
+splat = rng.uniform(-1, 1, splat_len) * np.exp(-np.arange(splat_len) / (splat_len * 0.15))
+
+fart = (carrier + noise) * env * flutter
+fart[:splat_len] += splat * 0.5
+write_wav(f"{OUT}/fart.wav", fart)
+
+print("Done — 8 WAV files written to public/sounds/")
