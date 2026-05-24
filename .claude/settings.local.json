@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Get-Content \"C:\\\\Users\\\\jsanc\\\\projects\\\\liambubbles\\\\vite.config.ts\" | ForEach-Object { $_ })"
+      "PowerShell(Get-Content \"C:\\\\Users\\\\jsanc\\\\projects\\\\liambubbles\\\\vite.config.ts\" | ForEach-Object { $_ })",
+      "Bash(python gen_sounds.py)",
+      "Bash(npm run *)",
+      "Bash(pip install *)",
+      "Bash(python gen_voices.py)",
+      "Bash(Remove-Item public/sounds/voice/amazing.mp3, public/sounds/voice/incredible.mp3, public/sounds/voice/legendary.mp3, public/sounds/voice/phenomenal.mp3, public/sounds/voice/epic.mp3, public/sounds/voice/outstanding.mp3 -ErrorAction SilentlyContinue)",
+      "Bash(del \"public\\\\sounds\\\\voice\\\\monster_cool.mp3\" \"public\\\\sounds\\\\voice\\\\spectacular.mp3\" \"public\\\\sounds\\\\voice\\\\outstanding_pickles.mp3\")"
     ]
   }
 }

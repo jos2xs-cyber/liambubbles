@@ -26,12 +26,50 @@ const COLORS = [
   '#FA8231', // Deep Vibrant Orange
 ];
 
+const FIREWORK_COLORS = ['#FF3B3B', '#FED330', '#26DE81', '#45AAF2', '#A55EEA', '#FA8231', '#FF69B4', '#00CED1', '#ffffff'];
+
+interface FireworkParticle { angle: number; dist: number; color: string; }
+interface FireworkBurst { id: number; x: number; y: number; delay: number; particles: FireworkParticle[]; }
+
+function hasValidMove(grid: Bubble[]): boolean {
+  for (const start of grid) {
+    const visited = new Set<string>([start.id]);
+    const queue = [start];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      for (const b of grid) {
+        if (visited.has(b.id) || b.color !== start.color) continue;
+        if (Math.abs(b.row - curr.row) <= 1 && Math.abs(b.col - curr.col) <= 1) {
+          visited.add(b.id);
+          queue.push(b);
+        }
+      }
+    }
+    if (visited.size >= 3) return true;
+  }
+  return false;
+}
+
+function ensureValidMove(grid: Bubble[]): Bubble[] {
+  if (hasValidMove(grid)) return grid;
+  // Force a 3-match in the center by making 3 adjacent cells the same color
+  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+  return grid.map(b => {
+    if (b.row === 4 && (b.col === 3 || b.col === 4 || b.col === 5)) {
+      return { ...b, color };
+    }
+    return b;
+  });
+}
+
 export default function App() {
   const [grid, setGrid] = useState<Bubble[]>([]);
   const [activeChain, setActiveChain] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+  const [exclamation, setExclamation] = useState<{ word: string; color: string; id: number } | null>(null);
+  const [fireworkBursts, setFireworkBursts] = useState<FireworkBurst[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Use a ref for the grid to avoid dependency issues in touch handlers
@@ -47,19 +85,22 @@ export default function App() {
     chainRef.current = activeChain;
   }, [activeChain]);
 
-  // Initialize Grid
+  // Initialize Grid — regenerate until at least one 3-match exists
   const initGrid = useCallback(() => {
-    const newBubbles: Bubble[] = [];
-    for (let r = 0; r < GRID_SIZE; r++) {
-      for (let c = 0; c < GRID_SIZE; c++) {
-        newBubbles.push({
-          id: `${r}-${c}-${Math.random()}`,
-          row: r,
-          col: c,
-          color: COLORS[Math.floor(Math.random() * COLORS.length)],
-        });
+    let newBubbles: Bubble[];
+    do {
+      newBubbles = [];
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          newBubbles.push({
+            id: `${r}-${c}-${Math.random()}`,
+            row: r,
+            col: c,
+            color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          });
+        }
       }
-    }
+    } while (!hasValidMove(newBubbles));
     setGrid(newBubbles);
     gridRef.current = newBubbles;
   }, []);
@@ -240,6 +281,17 @@ export default function App() {
     }
   };
 
+  const EXCLAMATION_WORDS = [
+    'AMAZING SPIDER KID!',
+    'WOW YOU ARE GOOD!',
+    'PIRATES BOOTY!',
+    'LIGHTNING BOY!',
+    'CRAZY COOL!',
+    'EPIC TACOS!',
+    'SUPER STINKY!',
+    'SPICY BANANAS!',
+  ];
+
   const handleEnd = async () => {
     const chainToPop = [...chainRef.current];
     setActiveChain([]);
@@ -247,6 +299,34 @@ export default function App() {
     draggingRef.current = false;
 
     if (chainToPop.length < 3) return;
+
+    // Tier sound + visual based on chain length
+    const color = gridRef.current.find(b => b.id === chainToPop[0])?.color ?? '#ffffff';
+    if (chainToPop.length >= 5) {
+      audioManager.playLegendaryPop();
+      const word = EXCLAMATION_WORDS[Math.floor(Math.random() * EXCLAMATION_WORDS.length)];
+      audioManager.speakExclamation(word);
+      setExclamation({ word, color, id: Date.now() });
+      setTimeout(() => setExclamation(null), 1800);
+
+      if (chainToPop.length >= 7) {
+        audioManager.playClapping();
+        const now = Date.now();
+        const bursts: FireworkBurst[] = Array.from({ length: 7 }, (_, i) => ({
+          id: now + i,
+          x: 10 + Math.random() * 80,
+          y: 5 + Math.random() * 65,
+          delay: i * 0.35,
+          particles: Array.from({ length: 16 }, (_, p) => ({
+            angle: (p / 16) * Math.PI * 2,
+            dist: 55 + Math.random() * 90,
+            color: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
+          })),
+        }));
+        setFireworkBursts(bursts);
+        setTimeout(() => setFireworkBursts([]), 3800);
+      }
+    }
 
     // 1. Pop Sequence
     for (let i = 0; i < chainToPop.length; i++) {
@@ -276,7 +356,7 @@ export default function App() {
                 });
             }
         }
-        return nextGrid;
+        return ensureValidMove(nextGrid);
     });
 
     audioManager.playRefill();
@@ -293,6 +373,52 @@ export default function App() {
         background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%)'
       }}
     >
+      {/* Fireworks for 7+ chains */}
+      {fireworkBursts.map(burst => (
+        <div
+          key={burst.id}
+          className="fixed pointer-events-none z-40"
+          style={{ left: `${burst.x}%`, top: `${burst.y}%` }}
+        >
+          {burst.particles.map((p, i) => (
+            <motion.div
+              key={i}
+              initial={{ x: 0, y: 0, scale: 1.8, opacity: 1 }}
+              animate={{
+                x: Math.cos(p.angle) * p.dist,
+                y: Math.sin(p.angle) * p.dist + 60,
+                scale: 0,
+                opacity: 0,
+              }}
+              transition={{ duration: 1.5, delay: burst.delay, ease: [0.2, 0.8, 0.3, 1] }}
+              className="absolute w-3 h-3 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ backgroundColor: p.color, boxShadow: `0 0 8px ${p.color}, 0 0 16px ${p.color}` }}
+            />
+          ))}
+        </div>
+      ))}
+
+      {/* Exclamation popup for 6+ chains */}
+      <AnimatePresence>
+        {exclamation && (
+          <motion.div
+            key={exclamation.id}
+            initial={{ scale: 0.3, opacity: 0 }}
+            animate={{ scale: [1.3, 1.0], opacity: 1 }}
+            exit={{ scale: 1.6, opacity: 0 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          >
+            <span
+              className="text-white font-black text-6xl tracking-widest uppercase select-none"
+              style={{ textShadow: `0 0 60px ${exclamation.color}, 0 0 120px ${exclamation.color}` }}
+            >
+              {exclamation.word}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
           {!hasStarted && (
               <motion.div 
