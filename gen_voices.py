@@ -13,7 +13,6 @@ WORDS = {
     'spicy_bananas':       'Spicy Bananas',
     'turbo_pants':         'Turbo Pants',
     'cosmic_waffles':      'Cosmic Waffles',
-    'boom_shakalaka':      'Boom Shakalaka',
     'captain_noodles':     'Captain Noodles',
     'rocket_monkey':       'Rocket Monkey',
     'laser_toes':          'Laser Toes',

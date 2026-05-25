@@ -350,7 +350,6 @@ export default function App() {
     'SPICY BANANAS!',
     'TURBO PANTS!',
     'COSMIC WAFFLES!',
-    'BOOM SHAKALAKA!',
     'CAPTAIN NOODLES!',
     'ROCKET MONKEY!',
     'LASER TOES!',
