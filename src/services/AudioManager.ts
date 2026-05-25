@@ -41,7 +41,13 @@ class AudioManager {
     if (!this.ctx) return;
 
     const sfx = ['pop', 'connect', 'power_up', 'epic_pop', 'legendary_pop', 'refill', 'clapping'];
-    const voices = ['amazing_spider_kid', 'wow_you_are_good', 'pirates_booty', 'lightning_boy', 'crazy_cool', 'epic_tacos', 'super_stinky', 'spicy_bananas'];
+    const voices = [
+      'amazing_spider_kid', 'wow_you_are_good', 'pirates_booty', 'lightning_boy',
+      'crazy_cool', 'epic_tacos', 'super_stinky', 'spicy_bananas',
+      'turbo_pants', 'cosmic_waffles', 'boom_shakalaka', 'captain_noodles',
+      'rocket_monkey', 'laser_toes', 'taco_thunder', 'flying_underpants',
+      'pickle_explosion', 'sneaky_pancakes', 'monster_muffins',
+    ];
 
     await Promise.allSettled([
       ...sfx.map(async (name) => {

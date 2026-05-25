@@ -81,7 +81,7 @@ export default function App() {
   const gridRef = useRef<Bubble[]>([]);
   const chainRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
-  const lastExclamationRef = useRef<string | null>(null);
+  const wordQueueRef = useRef<string[]>([]);
   const consecutiveChainRef = useRef(0);
   const lastChainTimeRef = useRef(0);
   const feverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -348,6 +348,17 @@ export default function App() {
     'EPIC TACOS!',
     'SUPER STINKY!',
     'SPICY BANANAS!',
+    'TURBO PANTS!',
+    'COSMIC WAFFLES!',
+    'BOOM SHAKALAKA!',
+    'CAPTAIN NOODLES!',
+    'ROCKET MONKEY!',
+    'LASER TOES!',
+    'TACO THUNDER!',
+    'FLYING UNDERPANTS!',
+    'PICKLE EXPLOSION!',
+    'SNEAKY PANCAKES!',
+    'MONSTER MUFFINS!',
   ];
 
   const handleEnd = async () => {
@@ -381,11 +392,10 @@ export default function App() {
     if (chainToPop.length >= 7) {
       // Full fanfare: sound + voice + word + emoji + clapping + fireworks
       audioManager.playLegendaryPop();
-      const pool = EXCLAMATION_WORDS.length > 1
-        ? EXCLAMATION_WORDS.filter(w => w !== lastExclamationRef.current)
-        : EXCLAMATION_WORDS;
-      const word = pool[Math.floor(Math.random() * pool.length)];
-      lastExclamationRef.current = word;
+      if (wordQueueRef.current.length === 0) {
+        wordQueueRef.current = [...EXCLAMATION_WORDS].sort(() => Math.random() - 0.5);
+      }
+      const word = wordQueueRef.current.pop()!;
       audioManager.speakExclamation(word);
       setExclamation({ word, color, id: Date.now() });
       setTimeout(() => setExclamation(null), 1800);
