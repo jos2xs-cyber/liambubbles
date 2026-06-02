@@ -82,6 +82,7 @@ export default function App() {
   const chainRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
   const wordQueueRef = useRef<string[]>([]);
+  const epicWordQueueRef = useRef<string[]>([]);
   const consecutiveChainRef = useRef(0);
   const lastChainTimeRef = useRef(0);
   const feverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -360,6 +361,14 @@ export default function App() {
     'MONSTER MUFFINS!',
   ];
 
+  const EPIC_EXCLAMATION_WORDS = [
+    'TACOOSAURUS REX!',
+    'GALAXY UNDERPANTS!',
+    'DRAGON PANCAKE POWER!',
+    'INTERGALACTIC BACON!',
+    'THUNDER MUFFIN SUPREME!',
+  ];
+
   const handleEnd = async () => {
     const chainToPop = [...chainRef.current];
     setActiveChain([]);
@@ -388,8 +397,23 @@ export default function App() {
       setTimeout(() => setFireworkBursts([]), 3800);
     };
 
-    if (chainToPop.length >= 7) {
-      // Full fanfare: sound + voice + word + emoji + clapping + fireworks
+    if (chainToPop.length >= 9) {
+      // Epic tier (9+): epic words
+      audioManager.playLegendaryPop();
+      if (epicWordQueueRef.current.length === 0) {
+        epicWordQueueRef.current = [...EPIC_EXCLAMATION_WORDS].sort(() => Math.random() - 0.5);
+      }
+      const word = epicWordQueueRef.current.pop()!;
+      audioManager.speakExclamation(word);
+      setExclamation({ word, color, id: Date.now() });
+      setTimeout(() => setExclamation(null), 1800);
+      audioManager.playClapping();
+      const face = COMBO_FACES[Math.floor(Math.random() * COMBO_FACES.length)];
+      setComboEmoji({ face, id: Date.now() });
+      setTimeout(() => setComboEmoji(null), 2200);
+      launchFireworks();
+    } else if (chainToPop.length >= 7) {
+      // Legendary tier (7-8): regular words
       audioManager.playLegendaryPop();
       if (wordQueueRef.current.length === 0) {
         wordQueueRef.current = [...EXCLAMATION_WORDS].sort(() => Math.random() - 0.5);
