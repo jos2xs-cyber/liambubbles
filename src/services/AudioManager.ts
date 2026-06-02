@@ -47,6 +47,7 @@ class AudioManager {
       'turbo_pants', 'cosmic_waffles', 'captain_noodles',
       'rocket_monkey', 'laser_toes', 'taco_thunder', 'flying_underpants',
       'pickle_explosion', 'sneaky_pancakes', 'monster_muffins',
+      'amazing', 'incredible', 'legendary', 'epic', 'outstanding', 'phenomenal', 'i_see_you',
     ];
 
     await Promise.allSettled([

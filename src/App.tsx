@@ -362,11 +362,13 @@ export default function App() {
   ];
 
   const EPIC_EXCLAMATION_WORDS = [
-    'TACOOSAURUS REX!',
-    'GALAXY UNDERPANTS!',
-    'DRAGON PANCAKE POWER!',
-    'INTERGALACTIC BACON!',
-    'THUNDER MUFFIN SUPREME!',
+    'AMAZING!',
+    'INCREDIBLE!',
+    'LEGENDARY!',
+    'EPIC!',
+    'OUTSTANDING!',
+    'PHENOMENAL!',
+    'I SEE YOU!',
   ];
 
   const handleEnd = async () => {
