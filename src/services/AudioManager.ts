@@ -35,6 +35,13 @@ class AudioManager {
     this.compressor.connect(this.masterGain);
 
     this.masterGain.gain.value = 0.4;
+
+    // Android Chrome suspends AudioContext when the page is backgrounded
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.ctx?.state === 'suspended') {
+        this.ctx.resume();
+      }
+    });
   }
 
   private async loadBuffers() {

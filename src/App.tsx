@@ -149,10 +149,18 @@ export default function App() {
   const findBubbleUnderPoint = useCallback((clientX: number, clientY: number) => {
     if (!containerRef.current) return null;
     const rect = containerRef.current.getBoundingClientRect();
-    
+
+    // On iOS Safari, user-scalable=no is ignored, so pinch-zoom is possible.
+    // Touch clientX/Y are in visual-viewport space; getBoundingClientRect is in
+    // layout-viewport space. Adjust so they match when zoomed.
+    const vv = window.visualViewport;
+    const scale = vv?.scale ?? 1;
+    const adjustedX = clientX / scale + (vv?.offsetLeft ?? 0);
+    const adjustedY = clientY / scale + (vv?.offsetTop ?? 0);
+
     // Position within the container (0-1)
-    const relX = (clientX - rect.left) / rect.width;
-    const relY = (clientY - rect.top) / rect.height;
+    const relX = (adjustedX - rect.left) / rect.width;
+    const relY = (adjustedY - rect.top) / rect.height;
 
     if (relX < -0.05 || relX > 1.05 || relY < -0.05 || relY > 1.05) return null;
 
@@ -342,14 +350,23 @@ export default function App() {
 
   const EXCLAMATION_WORDS = [
     'AMAZING SPIDER KID!',
+    'COWBOY CHICKEN!',
     'WOW YOU ARE GOOD!',
+    'TURBO TIGER!',
     'PIRATES BOOTY!',
+    'MEGA IRON KID!',
     'LIGHTNING BOY!',
+    'NACHO NINJA!',
     'CRAZY COOL!',
+    'SUSHI SOCKS!',
     'EPIC TACOS!',
+    'STINKY PICKLE BALLS!',
     'SUPER STINKY!',
+    'BANANA PANTS!',
     'SPICY BANANAS!',
+    'BUBBLE BOSS!',
     'TURBO PANTS!',
+    'TINY MUSTACHE!',
     'COSMIC WAFFLES!',
     'CAPTAIN NOODLES!',
     'ROCKET MONKEY!',
@@ -363,10 +380,15 @@ export default function App() {
 
   const EPIC_EXCLAMATION_WORDS = [
     'AMAZING!',
+    'YOU ARE ON FIRE!',
     'INCREDIBLE!',
+    'SUPER WIZARD KID!',
     'LEGENDARY!',
+    'MAX POWER!',
     'EPIC!',
+    'UNSTOPPABLE!',
     'OUTSTANDING!',
+    'BUBBLE WIZARD!',
     'PHENOMENAL!',
     'I SEE YOU!',
   ];
@@ -384,13 +406,13 @@ export default function App() {
 
     const launchFireworks = () => {
       const now = Date.now();
-      const bursts: FireworkBurst[] = Array.from({ length: 7 }, (_, i) => ({
+      const bursts: FireworkBurst[] = Array.from({ length: 5 }, (_, i) => ({
         id: now + i,
         x: 10 + Math.random() * 80,
         y: 5 + Math.random() * 65,
         delay: i * 0.35,
-        particles: Array.from({ length: 16 }, (_, p) => ({
-          angle: (p / 16) * Math.PI * 2,
+        particles: Array.from({ length: 10 }, (_, p) => ({
+          angle: (p / 10) * Math.PI * 2,
           dist: 55 + Math.random() * 90,
           color: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
         })),
@@ -577,7 +599,7 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-3xl flex flex-col items-center justify-center p-12 text-center"
+                className="fixed inset-0 z-[100] bg-slate-950/95 flex flex-col items-center justify-center p-12 text-center"
                 onClick={handleStartInteraction}
                 onTouchStart={(e) => { e.preventDefault(); handleStartInteraction(); }}
               >
@@ -663,11 +685,11 @@ export default function App() {
 
       {/* Header HUD */}
       <div className="absolute top-10 left-0 right-0 z-20 flex justify-between px-10 items-center">
-        <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl px-6 py-4 rounded-2xl border border-white/10 shadow-2xl">
+        <div className="flex items-center gap-4 bg-white/5 backdrop-blur-sm px-6 py-4 rounded-2xl border border-white/10 shadow-2xl">
           <Sparkles className="w-7 h-7 text-yellow-400 animate-pulse" />
           <span className="text-white font-bold tracking-widest uppercase text-2xl">Bubble Buster</span>
         </div>
-        <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-2xl border border-white/10 shadow-2xl text-center">
+        <div className="bg-white/5 backdrop-blur-sm px-6 py-4 rounded-2xl border border-white/10 shadow-2xl text-center">
           <div className="text-white/50 text-xs uppercase tracking-widest">Score</div>
           <div className="text-white font-black text-2xl">{score.toLocaleString()}</div>
         </div>
@@ -676,7 +698,7 @@ export default function App() {
           onPointerDown={handleRefreshDown}
           onPointerUp={handleRefreshUp}
           onPointerLeave={handleRefreshUp}
-          className="p-4 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 text-white hover:bg-white/10 transition-all active:scale-90 select-none"
+          className="p-4 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 text-white hover:bg-white/10 transition-all active:scale-90 select-none"
         >
           <RefreshCw className="w-5 h-5 opacity-50" />
         </button>
